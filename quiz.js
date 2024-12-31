@@ -256,455 +256,110 @@ const teamMultipliers = {
 };
 
 // Quiz status bijhouden
-let huidigeRonde = 1;
+let huidigeRonde = 0;
+let huidigeVraag = 0;
 let score = 0;
-let timer;
-
-// Voeg deze variabelen toe aan de quiz status
 let correcteAntwoorden = 0;
-let totalePunten = 0;
-let maxPunten = 0;
-let currentStreak = 0;
-let maxStreak = 0;
-let behaaldeAchievements = new Set();
-let startTijd;
 
-// DOM elementen
-const quizContainer = document.getElementById('quiz-container');
-const prevBtn = document.getElementById('prev-btn');
-const nextBtn = document.getElementById('next-btn');
-const timerElement = document.getElementById('timer');
+// DOM elementen ophalen
+const quizContent = document.getElementById('quiz-content');
+const startBtn = document.getElementById('startBtn');
+const nextBtn = document.getElementById('nextBtn');
 
-// Woordzoeker data
-const woordzoekerWoorden = [
-    'OLIEBOL', 'VUURWERK', 'CHAMPAGNE', 'AFTELLEN', 
-    'NIEUWJAAR', 'FEEST', 'GELUK', 'TRADITIE'
-];
-
-function maakWoordzoeker() {
-    const grootte = 12;
-    const grid = Array(grootte).fill().map(() => Array(grootte).fill(''));
-    const geplaatsteWoorden = [];
-    const richtingen = [[0, 1], [1, 0], [1, 1], [-1, 1]]; // horizontaal, verticaal, diagonaal
-
-    // Woorden plaatsen
-    woordzoekerWoorden.forEach(woord => {
-        let geplaatst = false;
-        let pogingen = 0;
-        
-        while (!geplaatst && pogingen < 100) {
-            const richting = richtingen[Math.floor(Math.random() * richtingen.length)];
-            const startX = Math.floor(Math.random() * grootte);
-            const startY = Math.floor(Math.random() * grootte);
-            
-            if (kanWoordPlaatsen(grid, woord, startX, startY, richting)) {
-                plaatsWoord(grid, woord, startX, startY, richting);
-                geplaatsteWoorden.push({
-                    woord,
-                    startX,
-                    startY,
-                    richting
-                });
-                geplaatst = true;
-            }
-            pogingen++;
-        }
-    });
-
-    // Vul lege plekken met random letters
-    for (let i = 0; i < grootte; i++) {
-        for (let j = 0; j < grootte; j++) {
-            if (grid[i][j] === '') {
-                grid[i][j] = String.fromCharCode(65 + Math.floor(Math.random() * 26));
-            }
-        }
-    }
-
-    return { grid, geplaatsteWoorden };
-}
-
-function kanWoordPlaatsen(grid, woord, x, y, [dx, dy]) {
-    const grootte = grid.length;
-    
-    for (let i = 0; i < woord.length; i++) {
-        const nieuwX = x + (dx * i);
-        const nieuwY = y + (dy * i);
-        
-        if (nieuwX < 0 || nieuwX >= grootte || nieuwY < 0 || nieuwY >= grootte) {
-            return false;
-        }
-        
-        if (grid[nieuwX][nieuwY] !== '' && grid[nieuwX][nieuwY] !== woord[i]) {
-            return false;
-        }
-    }
-    
-    return true;
-}
-
-function plaatsWoord(grid, woord, x, y, [dx, dy]) {
-    for (let i = 0; i < woord.length; i++) {
-        grid[x + (dx * i)][y + (dy * i)] = woord[i];
-    }
-}
-
-// Ronde navigatie
-function toonRonde(rondeNummer) {
-    document.querySelectorAll('.quiz-section').forEach(section => {
-        section.style.display = 'none';
-    });
-    
-    const rondeElement = document.getElementById(`ronde${rondeNummer}`);
-    if (rondeElement) {
-        rondeElement.style.display = 'block';
-        laadVragen(rondeNummer);
-    }
-    startTijd = Date.now();
-}
-
-// Vragen laden
-function laadVragen(rondeNummer) {
-    const rondeData = quizData[`ronde${rondeNummer}`];
-    const quizContent = document.querySelector(`#ronde${rondeNummer} .quiz-content`);
-    
-    if (rondeNummer === 2) {
-        // Voeg woordzoeker toe voor ronde 2
-        const { grid, geplaatsteWoorden } = maakWoordzoeker();
-        let woordzoekerHTML = `
-            <div class="woordzoeker-container animate__animated animate__fadeIn">
-                <h3>Woordzoeker: Vind de Oud & Nieuw woorden!</h3>
-                <div class="woordzoeker-grid">
-        `;
-        
-        grid.forEach((rij, i) => {
-            woordzoekerHTML += '<div class="woordzoeker-rij">';
-            rij.forEach((letter, j) => {
-                woordzoekerHTML += `
-                    <div class="woordzoeker-cel" data-x="${i}" data-y="${j}">
-                        ${letter}
-                    </div>
-                `;
-            });
-            woordzoekerHTML += '</div>';
-        });
-        
-        woordzoekerHTML += `
-                </div>
-                <div class="woordenlijst">
-                    <h4>Te zoeken woorden:</h4>
-                    <ul>
-                        ${woordzoekerWoorden.map(woord => `<li>${woord}</li>`).join('')}
-                    </ul>
-                </div>
-            </div>
-        `;
-        
-        quizContent.innerHTML = woordzoekerHTML;
-        
-        // Voeg event listeners toe voor woordselectie
-        initWoordzoekerEvents();
-    } else {
-        // Normale vragen laden voor andere rondes
-        let vragenHTML = `<h3>${rondeData.titel}</h3>`;
-        rondeData.vragen.forEach((vraag, index) => {
-            vragenHTML += `
-                <div class="vraag animate__animated animate__fadeIn">
-                    <p>${index + 1}. ${vraag.vraag}</p>
-                    <div class="opties">
-                        ${vraag.opties.map((optie, i) => `
-                            <label class="optie-label">
-                                <input type="radio" name="vraag${index}" value="${i}">
-                                ${optie}
-                            </label>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-        });
-        quizContent.innerHTML = vragenHTML;
-    }
-}
-
-// Timer functionaliteit
-function startTimer(minuten) {
-    let tijd = minuten * 60;
-    timer = setInterval(() => {
-        const minutes = Math.floor(tijd / 60);
-        const seconds = tijd % 60;
-        timerElement.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-        
-        if (--tijd < 0) {
-            clearInterval(timer);
-            timerElement.textContent = "Tijd is op!";
-            eindigRonde();
-        }
-    }, 1000);
-}
-
-// Event listeners
-nextBtn.addEventListener('click', () => {
-    if (huidigeRonde < 6) {
-        huidigeRonde++;
-        toonRonde(huidigeRonde);
-    }
-});
-
-prevBtn.addEventListener('click', () => {
-    if (huidigeRonde > 1) {
-        huidigeRonde--;
-        toonRonde(huidigeRonde);
-    }
-});
-
-// Initialisatie
+// Event listeners toevoegen
 document.addEventListener('DOMContentLoaded', () => {
-    toonRonde(1);
-    startTimer(15); // 15 minuten voor eerste ronde
+    startBtn.addEventListener('click', startQuiz);
+    nextBtn.addEventListener('click', volgendeVraag);
 });
 
-// Extra CSS voor de nieuwe elementen
-const style = document.createElement('style');
-style.textContent = `
-    .vraag {
-        margin-bottom: 2rem;
-    }
-    
-    .opties {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-    }
-    
-    .optie-label {
-        display: block;
-        padding: 1rem;
-        background-color: #f8f9fa;
-        border-radius: 5px;
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }
-    
-    .optie-label:hover {
-        background-color: #e9ecef;
-    }
-`;
-document.head.appendChild(style);
-
-// Voeg deze functie toe voor confetti effect
-function createConfetti() {
-    for (let i = 0; i < 50; i++) {
-        const confetti = document.createElement('div');
-        confetti.className = 'confetti';
-        confetti.style.left = Math.random() * 100 + 'vw';
-        confetti.style.animationDelay = Math.random() * 3 + 's';
-        confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 50%, 50%)`;
-        document.body.appendChild(confetti);
-        
-        setTimeout(() => confetti.remove(), 3000);
-    }
+function startQuiz() {
+    huidigeRonde = 1;
+    huidigeVraag = 0;
+    score = 0;
+    correcteAntwoorden = 0;
+    startBtn.style.display = 'none';
+    nextBtn.style.display = 'block';
+    toonVraag();
 }
 
-// Voeg deze functie toe voor het controleren van antwoorden
-function controleerAntwoord(element, vraagIndex, rondeData) {
-    const gekozenAntwoord = parseInt(element.value);
-    const juisteAntwoord = rondeData.vragen[vraagIndex].antwoord;
-    const rondeNummer = huidigeRonde === 6 ? 'finale' : `ronde${huidigeRonde}`;
-    
-    // Bereken basis punten
-    let punten = puntenSchema[rondeNummer].basis;
-    punten += puntenSchema[rondeNummer].moeilijkheidsBonus[vraagIndex];
-    
-    // Pas team multiplier toe
-    if (teamState.teamId) {
-        punten *= teamMultipliers[teamState.spelers.length > 2 ? 'team' : 
-                                teamState.spelers.length === 2 ? 'duo' : 'solo'];
+function toonVraag() {
+    const rondeData = quizData[`ronde${huidigeRonde}`];
+    if (!rondeData) {
+        toonEindResultaat();
+        return;
     }
+
+    const vraag = rondeData.vragen[huidigeVraag];
+    if (!vraag) {
+        huidigeRonde++;
+        huidigeVraag = 0;
+        toonVraag();
+        return;
+    }
+
+    quizContent.innerHTML = `
+        <div class="vraag animate__animated animate__fadeIn">
+            <h2>Ronde ${huidigeRonde}: ${rondeData.titel}</h2>
+            <p>${vraag.vraag}</p>
+            <div class="opties">
+                ${vraag.opties.map((optie, index) => `
+                    <button class="optie-btn" onclick="controleerAntwoord(${index})">
+                        ${optie}
+                    </button>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function controleerAntwoord(gekozenIndex) {
+    const rondeData = quizData[`ronde${huidigeRonde}`];
+    const juisteAntwoord = rondeData.vragen[huidigeVraag].antwoord;
     
-    if (gekozenAntwoord === juisteAntwoord) {
-        // Stuur antwoord naar team
-        if (teamState.teamId) {
-            socket.emit('teamAntwoord', {
-                teamId: teamState.teamId,
-                speler: spelerNaam,
-                correct: true,
-                punten: punten
-            });
-        }
-        
-        element.parentElement.classList.add('correct-answer');
+    if (gekozenIndex === juisteAntwoord) {
+        score += 10;
         correcteAntwoorden++;
-        totalePunten += punten;
-        currentStreak++;
-        updateScore();
-        createConfetti();
-        
-        // Check achievements
-        checkAchievements();
+        toonFeedback(true);
     } else {
-        if (teamState.teamId) {
-            socket.emit('teamAntwoord', {
-                teamId: teamState.teamId,
-                speler: spelerNaam,
-                correct: false,
-                punten: 0
-            });
-        }
-        
-        currentStreak = 0;
-        element.parentElement.classList.add('wrong-answer');
+        toonFeedback(false);
     }
 }
 
-// Voeg deze functie toe voor het updaten van de score
-function updateScore() {
-    const scoreElement = document.getElementById('score-display');
-    if (!scoreElement) {
-        const scoreDisplay = document.createElement('div');
-        scoreDisplay.id = 'score-display';
-        scoreDisplay.className = 'score-container animate__animated animate__fadeIn';
-        document.querySelector('#quiz-container').prepend(scoreDisplay);
+function toonFeedback(isCorrect) {
+    const optieBtns = document.querySelectorAll('.optie-btn');
+    optieBtns.forEach(btn => btn.disabled = true);
+    
+    if (isCorrect) {
+        quizContent.innerHTML += `
+            <div class="feedback correct animate__animated animate__bounceIn">
+                <p>Correct! +10 punten</p>
+            </div>
+        `;
+    } else {
+        quizContent.innerHTML += `
+            <div class="feedback incorrect animate__animated animate__shakeX">
+                <p>Helaas, dat is niet correct.</p>
+            </div>
+        `;
     }
     
-    const scoreHTML = `
-        <div class="score-info">
+    nextBtn.disabled = false;
+}
+
+function volgendeVraag() {
+    huidigeVraag++;
+    nextBtn.disabled = true;
+    toonVraag();
+}
+
+function toonEindResultaat() {
+    quizContent.innerHTML = `
+        <div class="eind-resultaat animate__animated animate__fadeIn">
+            <h2>Quiz Voltooid!</h2>
+            <p>Je score: ${score}</p>
             <p>Correcte antwoorden: ${correcteAntwoorden}</p>
-            <p>Totale punten: ${totalePunten}</p>
+            <button onclick="startQuiz()" class="btn">Opnieuw Spelen</button>
         </div>
     `;
-    document.getElementById('score-display').innerHTML = scoreHTML;
-}
-
-// Voeg deze functie toe voor de doe-opdrachten in ronde 4
-function laadDoeOpdrachten() {
-    const quizContent = document.querySelector('#ronde4 .quiz-content');
-    let html = `
-        <div class="doe-opdrachten animate__animated animate__fadeIn">
-            <div class="foto-upload">
-                <h3>Foto Upload</h3>
-                <p>${quizData.ronde4.opdrachten[0].beschrijving}</p>
-                <input type="file" accept="image/*" class="upload-input">
-                <div class="preview-container"></div>
-            </div>
-            
-            <div class="audio-opname">
-                <h3>Nieuwjaarswens</h3>
-                <p>${quizData.ronde4.opdrachten[1].beschrijving}</p>
-                <button class="btn record-btn">
-                    <i class="fas fa-microphone"></i> Start Opname
-                </button>
-                <div class="audio-preview"></div>
-            </div>
-        </div>
-    `;
-    quizContent.innerHTML = html;
-    
-    initDoeOpdrachtenEvents();
-}
-
-// Voeg deze CSS toe voor de doe-opdrachten
-const style = document.createElement('style');
-style.textContent = `
-    .doe-opdrachten {
-        display: grid;
-        gap: 2rem;
-    }
-
-    .foto-upload, .audio-opname {
-        background: white;
-        padding: 2rem;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    .preview-container {
-        margin-top: 1rem;
-        max-width: 300px;
-    }
-
-    .preview-container img {
-        width: 100%;
-        border-radius: 5px;
-    }
-
-    .record-btn {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .audio-preview {
-        margin-top: 1rem;
-    }
-`;
-document.head.appendChild(style); 
-
-function berekenTijdsBonus(gebruikteTijd, maxTijd) {
-    const tijdOver = maxTijd - gebruikteTijd;
-    return tijdOver > 0 ? Math.floor(tijdOver * 2) : 0;
-} 
-
-// Functie voor het tonen van streak berichten
-function toonStreakMessage(streak) {
-    const message = document.createElement('div');
-    message.className = 'streak-message animate__animated animate__bounceIn';
-    message.innerHTML = `
-        <div class="streak-bonus">
-            <span class="streak-count">${streak}x</span>
-            <span class="streak-text">STREAK!</span>
-            <span class="bonus-points">+${streakBonus[streak]} punten</span>
-        </div>
-    `;
-    document.body.appendChild(message);
-    
-    setTimeout(() => {
-        message.classList.add('animate__bounceOut');
-        setTimeout(() => message.remove(), 1000);
-    }, 2000);
-}
-
-// Functie voor het checken van achievements
-function checkAchievements() {
-    // Speed Runner achievement
-    const gebruikteTijd = (Date.now() - startTijd) / 1000;
-    const maxTijd = quizData[`ronde${huidigeRonde}`].tijdslimiet;
-    if (gebruikteTijd < maxTijd * 0.5 && !behaaldeAchievements.has('speedRunner')) {
-        behaaldAchievement('speedRunner');
-    }
-    
-    // Perfectionist achievement
-    const rondeVragen = quizData[`ronde${huidigeRonde}`].vragen.length;
-    if (correcteAntwoorden % rondeVragen === 0 && !behaaldeAchievements.has('perfectionist')) {
-        behaaldAchievement('perfectionist');
-    }
-    
-    // Quiz Master achievement
-    if (totalePunten > 1000 && !behaaldeAchievements.has('quizMaster')) {
-        behaaldAchievement('quizMaster');
-    }
-}
-
-// Functie voor het tonen van behaalde achievements
-function behaaldAchievement(achievementId) {
-    const achievement = achievements[achievementId];
-    behaaldeAchievements.add(achievementId);
-    
-    const achievementElement = document.createElement('div');
-    achievementElement.className = 'achievement animate__animated animate__slideInUp';
-    achievementElement.innerHTML = `
-        <div class="achievement-content">
-            <h3>${achievement.naam}</h3>
-            <p>${achievement.voorwaarde}</p>
-            <span class="achievement-points">+${achievement.punten} punten!</span>
-        </div>
-    `;
-    document.body.appendChild(achievementElement);
-    
-    totalePunten += achievement.punten;
-    updateScore();
-    createConfetti();
-    
-    setTimeout(() => {
-        achievementElement.classList.add('animate__slideOutUp');
-        setTimeout(() => achievementElement.remove(), 1000);
-    }, 3000);
+    nextBtn.style.display = 'none';
 } 
